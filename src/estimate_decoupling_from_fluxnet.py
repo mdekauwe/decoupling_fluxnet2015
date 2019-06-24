@@ -2,6 +2,11 @@
 """
 Estimate omega from FLUXNET2015 data.
 
+Data from:
+
+/srv/ccrc/data04/z3509830/Fluxnet_data/FLUXNET2016/Original_data/Halfhourly_qc_fixed
+/srv/ccrc/data04/z3509830/Fluxnet_data/FLUXNET2016/Original_data/Hourly_qc_fixed
+
 That's all folks.
 """
 __author__ = "Martin De Kauwe"
@@ -55,7 +60,7 @@ class FitOmega(object):
         if not os.path.exists(self.outputs):
             os.mkdir(self.ofname)
 
-    def main(self):
+    def main(self, hour=False):
 
         df_site = pd.read_csv(self.site_fname)
         #df_out = pd.DataFrame(columns=self.out_cols)
@@ -67,7 +72,7 @@ class FitOmega(object):
 
             df = self.read_file(fname)
 
-            (df, d, no_G) = self.filter_dataframe(df, d)
+            (df, d, no_G) = self.filter_dataframe(df, d, hour)
 
             #ofname = "/Users/mdekauwe/Desktop/test.csv"
             #df.to_csv(ofname, index=True)
@@ -76,12 +81,27 @@ class FitOmega(object):
             # Estimate gs from inverting the penman-monteith
             (df) = self.penman_montieth_wrapper(d, df, no_G)
 
-            self.make_plot(d, df)
+            dfx = df[['omega']]
+            df_m = dfx.resample('M').mean()
+            df_s = dfx.resample('M').std()
+            df_c = dfx.resample('M').count()
+            df_m = df_m.rename(columns={'omega':'omega_mu'})
+            df_s = df_s.rename(columns={'omega':'omega_sigma'})
+            df_c = df_c.rename(columns={'omega':'omega_count'})
+
+            dfx = df[['GPP']]
+            df_sum = dfx.resample('M').sum()
+            df_sum = df_sum.rename(columns={'GPP':'GPP_g_c_m2_month'})
+
+            df_out = pd.concat([df_m,df_s,df_c,df_sum],axis=1)
+            #df_out = df_out.dropna()
+
+            self.make_plot(d, df_out)
 
             ofname = os.path.join(self.outputs, "%s_omega.csv" % (d['site']))
             if os.path.exists(ofname):
                 os.remove(ofname)
-            df.to_csv(ofname, index=True)
+            df_out.to_csv(ofname, index=True)
 
     def read_file(self, fname):
 
@@ -102,12 +122,13 @@ class FitOmega(object):
                                 'G_F_MDS_QC': 'Qg_qc',
                                 'LE_F_MDS_QC': 'Qle_qc', 'H_F_MDS_QC': 'Qh_qc',
                                 'LE_CORR_JOINTUNC': 'Qle_cor_uc',
-                                'H_CORR_JOINTUNC': 'Qh_cor_uc'})
+                                'H_CORR_JOINTUNC': 'Qh_cor_uc',
+                                'GPP_NT_VUT_REF': 'GPP'})
 
         df = df[['Qle', 'Qh', 'VPD', 'Tair', 'Rnet', 'Qg', 'Wind', \
                  'Precip', 'ustar', 'Qle_cor', 'Qh_cor', 'Psurf',\
                  'CO2air', 'CO2air_qc', 'Qg_qc', 'Qle_qc', 'Qh_qc', \
-                 'Qle_cor_uc', 'Qh_cor_uc']]
+                 'Qle_cor_uc', 'Qh_cor_uc', 'GPP']]
 
         # Convert units ...
 
@@ -116,7 +137,6 @@ class FitOmega(object):
 
         # kPa -> Pa
         df.loc[:, 'Psurf'] *= c.KPA_TO_PA
-
 
         # W m-2 to kg m-2 s-1
         lhv = self.latent_heat_vapourisation(df['Tair'])
@@ -198,7 +218,7 @@ class FitOmega(object):
 
         return (d)
 
-    def filter_dataframe(self, df, d):
+    def filter_dataframe(self, df, d, hour):
         """
         Filter data only using QA=0 (obs) and QA=1 (good)
         """
@@ -228,13 +248,10 @@ class FitOmega(object):
                     (df['ET'] > 0.01 / 1000.) & # check in mmol, but units are mol
                     (df['VPD'] > 0.05)]
 
-        
         # Filter events after rain ...
         idx = df[df.Precip > 0.0].index.tolist()
 
-        diff = df.index.minute[1] - df.index.minute[0]
-        print(diff)
-        if diff == 0:
+        if hour:
             # hour gap i.e. Tumba
             bad_dates = []
             for rain_idx in idx:
@@ -243,7 +260,11 @@ class FitOmega(object):
                     new_idx = rain_idx + dt.timedelta(minutes=60)
                     bad_dates.append(new_idx)
                     rain_idx = new_idx
+
+            df.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
+                                c.SEC_TO_HR
         else:
+
             # 30 min gap
             bad_dates = []
             for rain_idx in idx:
@@ -252,6 +273,9 @@ class FitOmega(object):
                     new_idx = rain_idx + dt.timedelta(minutes=30)
                     bad_dates.append(new_idx)
                     rain_idx = new_idx
+
+            df.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
+                                c.SEC_TO_HLFHR
 
         # There will be duplicate dates most likely so remove these.
         bad_dates = np.unique(bad_dates)
@@ -300,9 +324,6 @@ class FitOmega(object):
 
     def make_plot(self, d, df):
 
-        df_m = df.resample('M').mean()
-        df_s = df.resample('M').std()
-
         fig = plt.figure(figsize=(9,6))
         fig.subplots_adjust(hspace=0.1)
         fig.subplots_adjust(wspace=0.05)
@@ -317,9 +338,9 @@ class FitOmega(object):
 
         ax = fig.add_subplot(111)
 
-        ax.plot(df_m.index, df_m.omega, lw=2, color='blue')
-        ax.fill_between(df_m.index, df_m.omega+df_s.omega,
-                        df_m.omega-df_s.omega,
+        ax.plot(df.index, df.omega_mu, lw=2, color='blue')
+        ax.fill_between(df.index, df.omega_mu+df.omega_sigma,
+                        df.omega_mu-df.omega_sigma,
                         facecolor='blue', alpha=0.5)
         ax.set_ylim(0, 1)
         ax.set_ylabel("$\Omega$ (-)")
@@ -359,7 +380,7 @@ class FitOmega(object):
 
 if __name__ == "__main__":
 
-    F = FitOmega(fdir="/Users/mdekauwe/Desktop/test",
+    F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
                  ofdir="data/processed/",
@@ -367,4 +388,14 @@ if __name__ == "__main__":
                  site_fname="site_metadata.csv",
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
                  ofname="omega_fluxnet_PM.csv")
-    F.main()
+    F.main(hour=True)
+
+    F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hfhrly",
+                 #fdir="data/raw_data/fluxnet2015_tier_1",
+                 adir="data/raw_data/anna_meta",
+                 ofdir="data/processed/",
+                 co2dir="data/raw_data/global_CO2_data/",
+                 site_fname="site_metadata.csv",
+                 global_co2_fname="Global_CO2_mean_NOAA.csv",
+                 ofname="omega_fluxnet_PM.csv")
+    F.main(hour=False)

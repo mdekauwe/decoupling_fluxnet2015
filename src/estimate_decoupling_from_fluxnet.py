@@ -68,10 +68,15 @@ class FitOmega(object):
         df_site = pd.read_csv(self.site_fname)
         #df_out = pd.DataFrame(columns=self.out_cols)
 
+        bad_sites = ["US-PFa", "NO-Blv"] # No Rnet
+
         for i, fname in enumerate(self.flist):
 
             d = self.get_site_info(df_site, fname)
             print("%s %s" % (d['site'], d['yrs']))
+
+            if d['site'] in bad_sites:
+                continue
 
             df = self.read_file(fname)
 
@@ -79,29 +84,31 @@ class FitOmega(object):
 
 
             # Estimate gs from inverting the penman-monteith
-            (df) = self.penman_montieth_wrapper(d, df, no_G)
+            (df, error) = self.penman_montieth_wrapper(d, df, no_G)
 
-            dfx = df[['omega']]
-            df_m = dfx.resample('M').mean()
-            df_s = dfx.resample('M').std()
-            df_c = dfx.resample('M').count()
-            df_m = df_m.rename(columns={'omega':'omega_mu'})
-            df_s = df_s.rename(columns={'omega':'omega_sigma'})
-            df_c = df_c.rename(columns={'omega':'omega_count'})
+            if error == False:
+                dfx = df[['omega']]
+                df_m = dfx.resample('M').mean()
+                df_s = dfx.resample('M').std()
+                df_c = dfx.resample('M').count()
+                df_m = df_m.rename(columns={'omega':'omega_mu'})
+                df_s = df_s.rename(columns={'omega':'omega_sigma'})
+                df_c = df_c.rename(columns={'omega':'omega_count'})
 
-            dfx = df[['GPP']]
-            df_sum = dfx.resample('M').sum()
-            df_sum = df_sum.rename(columns={'GPP':'GPP_g_c_m2_month'})
+                dfx = df[['GPP']]
+                df_sum = dfx.resample('M').sum()
+                df_sum = df_sum.rename(columns={'GPP':'GPP_g_c_m2_month'})
 
-            df_out = pd.concat([df_m,df_s,df_c,df_sum],axis=1)
-            #df_out = df_out.dropna()
+                df_out = pd.concat([df_m,df_s,df_c,df_sum],axis=1)
+                #df_out = df_out.dropna()
 
-            self.make_plot(d, df_out)
+                self.make_plot(d, df_out)
 
-            ofname = os.path.join(self.outputs, "%s_omega.csv" % (d['site']))
-            if os.path.exists(ofname):
-                os.remove(ofname)
-            df_out.to_csv(ofname, index=True)
+                ofname = os.path.join(self.outputs, \
+                                      "%s_omega.csv" % (d['site']))
+                if os.path.exists(ofname):
+                    os.remove(ofname)
+                df_out.to_csv(ofname, index=True)
 
     def read_file(self, fname):
 
@@ -291,6 +298,8 @@ class FitOmega(object):
 
     def penman_montieth_wrapper(self, d, df, no_G):
 
+        error = False
+
         if no_G:
             G = None
         elif len(df.Qg) > 0:
@@ -317,16 +326,18 @@ class FitOmega(object):
         df["gs"] = gs
         df["omega"] = omega
 
+
         # screen for bad data, or data I've set to bad
         df = df[(df['gs_est'] > 0.0) & (np.isnan(df['gs_est']) == False)]
 
         # Filter extreme omega are ridiculous
+        if df['omega'].count() != 0:    # count non Nans
+            extreme = np.nanmean(df['omega']) + (3.0 * np.nanstd(df['omega']))
+            df = df[df['omega'] < extreme]
+        else:
+            error = True # all bad data
 
-        print(len(~np.isnan(df.omega)))
-        extreme = np.nanmean(df['omega']) + (3.0 * np.nanstd(df['omega']))
-        df = df[df['omega'] < extreme]
-
-        return (df)
+        return (df, error)
 
     def make_plot(self, d, df):
 
@@ -385,7 +396,7 @@ class FitOmega(object):
         return (2.501 - 0.00237 * tair) * 1E06
 
 if __name__ == "__main__":
-
+    """
     F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
@@ -395,8 +406,9 @@ if __name__ == "__main__":
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
                  ofname="omega_fluxnet_PM.csv")
     F.main(hour=True)
-
     """
+
+    #"""
     F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hfhrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
@@ -406,4 +418,4 @@ if __name__ == "__main__":
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
                  ofname="omega_fluxnet_PM.csv")
     F.main(hour=False)
-    """
+    #"""

@@ -317,6 +317,8 @@ class FitOmega(object):
         df = df[(df['gs_est'] > 0.0) & (np.isnan(df['gs_est']) == False)]
 
         # Filter extreme omega are ridiculous
+
+        print(len(~np.isnan(df.omega)))
         extreme = np.nanmean(df['omega']) + (3.0 * np.nanstd(df['omega']))
         df = df[df['omega'] < extreme]
 

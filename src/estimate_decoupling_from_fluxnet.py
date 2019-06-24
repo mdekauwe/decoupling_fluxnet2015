@@ -29,6 +29,9 @@ from rmse import rmse
 import scipy.stats as stats
 import re
 
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
+
 import constants as c
 from penman_monteith import PenmanMonteith
 from estimate_pressure import estimate_pressure
@@ -74,9 +77,6 @@ class FitOmega(object):
 
             (df, d, no_G) = self.filter_dataframe(df, d, hour)
 
-            #ofname = "/Users/mdekauwe/Desktop/test.csv"
-            #df.to_csv(ofname, index=True)
-            #sys.exit()
 
             # Estimate gs from inverting the penman-monteith
             (df) = self.penman_montieth_wrapper(d, df, no_G)
@@ -261,8 +261,10 @@ class FitOmega(object):
                     bad_dates.append(new_idx)
                     rain_idx = new_idx
 
-            df.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
-                                c.SEC_TO_HR
+            df2 = df.copy()
+            df2.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
+                                 c.SEC_TO_HR
+            df = df2
         else:
 
             # 30 min gap
@@ -274,8 +276,10 @@ class FitOmega(object):
                     bad_dates.append(new_idx)
                     rain_idx = new_idx
 
-            df.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
+            df2 = df.copy()
+            df2.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
                                 c.SEC_TO_HLFHR
+            df = df2
 
         # There will be duplicate dates most likely so remove these.
         bad_dates = np.unique(bad_dates)
@@ -392,6 +396,7 @@ if __name__ == "__main__":
                  ofname="omega_fluxnet_PM.csv")
     F.main(hour=True)
 
+    """
     F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hfhrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
@@ -401,3 +406,4 @@ if __name__ == "__main__":
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
                  ofname="omega_fluxnet_PM.csv")
     F.main(hour=False)
+    """

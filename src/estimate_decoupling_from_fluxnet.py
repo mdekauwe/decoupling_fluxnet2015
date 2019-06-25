@@ -45,7 +45,7 @@ class FitOmega(object):
 
     def __init__(self, fdir, adir, co2dir, ofdir, site_fname,
                  global_co2_fname, ofname):
-
+        print(fdir)
         self.flist = glob.glob(os.path.join(fdir, "*.csv"))
         self.site_fname = os.path.join(adir, site_fname)
         self.global_co2_fname = os.path.join(co2dir, global_co2_fname)
@@ -68,15 +68,19 @@ class FitOmega(object):
         df_site = pd.read_csv(self.site_fname)
         #df_out = pd.DataFrame(columns=self.out_cols)
 
-        bad_sites = ["US-PFa", "NO-Blv"] # No Rnet
+        bad_sites = ["US-PFa", "NO-Blv", "CH-Fru", "JP-SMF", "CH-Oe2", \
+                     "ES-Ln2", "CH-Lae", "JP-MBF"]
 
         for i, fname in enumerate(self.flist):
+
+            s = os.path.basename(fname).split(".")[0].split("_")[1].strip()
+            if s in bad_sites:
+                continue
 
             d = self.get_site_info(df_site, fname)
             print("%s %s" % (d['site'], d['yrs']))
 
-            if d['site'] in bad_sites:
-                continue
+
 
             df = self.read_file(fname)
 

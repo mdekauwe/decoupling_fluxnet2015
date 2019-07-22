@@ -99,11 +99,46 @@ class FitOmega(object):
                 df_s = df_s.rename(columns={'omega':'omega_sigma'})
                 df_c = df_c.rename(columns={'omega':'omega_count'})
 
-                dfx = df[['GPP']]
-                df_sum = dfx.resample('M').sum()
-                df_sum = df_sum.rename(columns={'GPP':'GPP_g_c_m2_month'})
 
-                df_out = pd.concat([df_m,df_s,df_c,df_sum],axis=1)
+                dfx = df.copy()
+                dfx = dfx[['GPP', 'ET', 'ga', 'gs']]
+                #dfx = dfx[['GPP', 'ET']]
+
+                if hour:
+                    # mol m-2 s-1 to kg m-2 hr-1
+                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HR
+                    dfx.loc[:, 'ga'] *= conv
+                    dfx.loc[:, 'gs'] *= conv
+
+                    # mol m-2 s-1 to kg m-2 s-1  (mm hr-1)
+                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HR
+                    dfx.loc[:, 'ET'] *= conv
+                else:
+                    # mol m-2 s-1 to mol m-2 hr-1
+                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HLFHR
+                    dfx.loc[:, 'ga'] *= conv
+                    dfx.loc[:, 'gs'] *= conv
+
+                    # mol m-2 s-1 to kg m-2 s-1  (mm hr-1)
+                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HLFHR
+                    dfx.loc[:, 'ET'] *= conv
+
+                df_sum = dfx.resample('M').sum()
+                df_sum = df_sum.rename(columns={'GPP':'GPP_g_c_m2_month',
+                                                'ET':'ET_mm_month',
+                                                'gs':'gs_mm_month',
+                                                'ga':'gs_mm_month'})
+
+                dfx = df.copy()
+                dfx = dfx[['VPD', 'gs', 'ga']]
+                conv = c.PA_TO_KPA
+                dfx.loc[:, 'VPD'] *= conv
+                df_mean = dfx.resample('M').mean()
+                df_mean = df_mean.rename(columns={'VPD':'VPD_kPa',
+                                                  'gs':'gs_mol_m2_s1',
+                                                  'ga':'ga_mol_m2_s'})
+
+                df_out = pd.concat([df_m,df_s,df_c,df_sum,df_mean],axis=1)
                 #df_out = df_out.dropna()
 
                 self.make_plot(d, df_out)
@@ -275,6 +310,8 @@ class FitOmega(object):
             df2 = df.copy()
             df2.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
                                  c.SEC_TO_HR
+
+
             df = df2
         else:
 
@@ -290,6 +327,7 @@ class FitOmega(object):
             df2 = df.copy()
             df2.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
                                 c.SEC_TO_HLFHR
+
             df = df2
 
         # There will be duplicate dates most likely so remove these.
@@ -338,6 +376,12 @@ class FitOmega(object):
         if df['omega'].count() != 0:    # count non Nans
             extreme = np.nanmean(df['omega']) + (3.0 * np.nanstd(df['omega']))
             df = df[df['omega'] < extreme]
+        else:
+            error = True # all bad data
+
+        # Filter extreme gs values that are ridiculous
+        if df['gs_est'].count() != 0:    # count non Nans
+            df = df[df['gs_est'] < 1.5 * df['ga']]
         else:
             error = True # all bad data
 

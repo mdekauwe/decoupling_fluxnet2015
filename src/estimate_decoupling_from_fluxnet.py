@@ -127,7 +127,7 @@ class FitOmega(object):
                 df_sum = df_sum.rename(columns={'GPP':'GPP_g_c_m2_month',
                                                 'ET':'ET_mm_month',
                                                 'gs':'gs_mm_month',
-                                                'ga':'gs_mm_month'})
+                                                'ga':'ga_mm_month'})
 
                 dfx = df.copy()
                 dfx = dfx[['VPD', 'gs', 'ga']]
@@ -135,7 +135,7 @@ class FitOmega(object):
                 dfx.loc[:, 'VPD'] *= conv
                 df_mean = dfx.resample('M').mean()
                 df_mean = df_mean.rename(columns={'VPD':'VPD_kPa',
-                                                  'gs':'gs_mol_m2_s1',
+                                                  'gs':'gs_mol_m2_s',
                                                   'ga':'ga_mol_m2_s'})
 
                 df_out = pd.concat([df_m,df_s,df_c,df_sum,df_mean],axis=1)
@@ -444,7 +444,9 @@ class FitOmega(object):
         return (2.501 - 0.00237 * tair) * 1E06
 
 if __name__ == "__main__":
-    """
+
+
+    #"""
     F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
@@ -452,11 +454,11 @@ if __name__ == "__main__":
                  co2dir="data/raw_data/global_CO2_data/",
                  site_fname="site_metadata.csv",
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
-                 ofname="omega_fluxnet_PM.csv")
+                 ofname="omega_fluxnet_PM_hourly.csv")
     F.main(hour=True)
-    """
-
     #"""
+
+    """
     F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hfhrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
@@ -464,6 +466,6 @@ if __name__ == "__main__":
                  co2dir="data/raw_data/global_CO2_data/",
                  site_fname="site_metadata.csv",
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
-                 ofname="omega_fluxnet_PM.csv")
+                 ofname="omega_fluxnet_PM_half_hourly.csv")
     F.main(hour=False)
-    #"""
+    """

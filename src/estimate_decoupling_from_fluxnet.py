@@ -24,14 +24,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import calendar
 import datetime as dt
-from scipy.stats import pearsonr
+#from scipy.stats import pearsonr
 from rmse import rmse
-import scipy.stats as stats
+#import scipy.stats as stats
 import re
+from datetime import datetime
 
-from pandas.plotting import register_matplotlib_converters
-register_matplotlib_converters()
+#from pandas.plotting import register_matplotlib_converters
+#register_matplotlib_converters()
 
+sys.path.append('src')
 import constants as c
 from penman_monteith import PenmanMonteith
 from estimate_pressure import estimate_pressure
@@ -45,7 +47,7 @@ class FitOmega(object):
 
     def __init__(self, fdir, adir, co2dir, ofdir, site_fname,
                  global_co2_fname, ofname):
-        print(fdir)
+
         self.flist = glob.glob(os.path.join(fdir, "*.csv"))
         self.site_fname = os.path.join(adir, site_fname)
         self.global_co2_fname = os.path.join(co2dir, global_co2_fname)
@@ -61,7 +63,7 @@ class FitOmega(object):
         if not os.path.exists(self.oplots):
             os.mkdir(self.oplots)
         if not os.path.exists(self.outputs):
-            os.mkdir(self.ofname)
+            os.mkdir(self.outputs)
 
     def main(self, hour=False):
 
@@ -92,66 +94,32 @@ class FitOmega(object):
 
             if error == False:
                 dfx = df[['omega']]
-                df_m = dfx.resample('M').mean()
-                df_s = dfx.resample('M').std()
-                df_c = dfx.resample('M').count()
-                df_m = df_m.rename(columns={'omega':'omega_mu'})
+                df_d = dfx.resample('D').mean()
+                df_s = dfx.resample('D').std()
+                df_c = dfx.resample('D').count()
+                df_d = df_d.rename(columns={'omega':'omega_mu'})
                 df_s = df_s.rename(columns={'omega':'omega_sigma'})
                 df_c = df_c.rename(columns={'omega':'omega_count'})
 
 
                 dfx = df.copy()
-                dfx = dfx[['GPP', 'ET', 'ga', 'gs']]
-                #dfx = dfx[['GPP', 'ET']]
+                dfx = dfx[['omega','GPP_umol_m2_s', 'Qle', 'ga', 'gs', 'VPD']]
+                dfx.loc[:, 'VPD'] *= c.PA_TO_KPA
+                dfx = dfx.rename(columns={'VPD':'VPD_kPa',
+                                          'Qle':'LE_W_m2',
+                                          'gs':'gs_mol_m2_s',
+                                          'ga':'ga_mol_m2_s'})
 
-                if hour:
-                    # mol m-2 s-1 to kg m-2 hr-1
-                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HR
-                    dfx.loc[:, 'ga'] *= conv
-                    dfx.loc[:, 'gs'] *= conv
-
-                    # mol m-2 s-1 to kg m-2 s-1  (mm hr-1)
-                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HR
-                    dfx.loc[:, 'ET'] *= conv
-                else:
-                    # mol m-2 s-1 to mol m-2 hr-1
-                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HLFHR
-                    dfx.loc[:, 'ga'] *= conv
-                    dfx.loc[:, 'gs'] *= conv
-
-                    # mol m-2 s-1 to kg m-2 s-1  (mm hr-1)
-                    conv = c.MOL_WATER_2_G_WATER * c.G_TO_KG * c.SEC_TO_HLFHR
-                    dfx.loc[:, 'ET'] *= conv
-
-                df_sum = dfx.resample('M').sum()
-                df_sum = df_sum.rename(columns={'GPP':'GPP_g_c_m2_month',
-                                                'ET':'ET_mm_month',
-                                                'gs':'gs_mm_month',
-                                                'ga':'ga_mm_month'})
-
-                dfx = df.copy()
-                dfx = dfx[['VPD', 'gs', 'ga']]
-                conv = c.PA_TO_KPA
-                dfx.loc[:, 'VPD'] *= conv
-                df_mean = dfx.resample('M').mean()
-                df_mean = df_mean.rename(columns={'VPD':'VPD_kPa',
-                                                  'gs':'gs_mol_m2_s',
-                                                  'ga':'ga_mol_m2_s'})
-
-                df_out = pd.concat([df_m,df_s,df_c,df_sum,df_mean],axis=1)
-                #df_out = df_out.dropna()
-
-                self.make_plot(d, df_out)
 
                 ofname = os.path.join(self.outputs, \
                                       "%s_omega.csv" % (d['site']))
                 if os.path.exists(ofname):
                     os.remove(ofname)
-                df_out.to_csv(ofname, index=True)
+                dfx.to_csv(ofname, index=True)
 
     def read_file(self, fname):
 
-        date_parse = lambda x: pd.datetime.strptime(x, '%Y%m%d%H%M%S')
+        date_parse = lambda x: datetime.strptime(x, '%Y%m%d%H%M%S')
         df = pd.read_csv(fname, index_col='TIMESTAMP_START',
                          parse_dates=['TIMESTAMP_START'],
                          date_parser=date_parse)
@@ -189,6 +157,7 @@ class FitOmega(object):
         df.loc[:, 'ET'] = df['Qle'] / lhv
         df.loc[:, 'ET_cor'] = df['Qle_cor'] / lhv
 
+
         # kg m-2 s-1 to mol m-2 s-1
         conv = c.KG_TO_G * c.G_WATER_TO_MOL_WATER
         df.loc[:, 'ET'] *= conv
@@ -209,6 +178,7 @@ class FitOmega(object):
 
         d = {}
         s = os.path.basename(fname).split(".")[0].split("_")[1].strip()
+
         d['site'] = s
         d['yrs'] = os.path.basename(fname).split(".")[0].split("_")[5]
         d['lat'] = df_site.loc[df_site.SiteCode == s,'SiteLatitude'].values[0]
@@ -308,6 +278,7 @@ class FitOmega(object):
                     rain_idx = new_idx
 
             df2 = df.copy()
+            df2.loc[:, 'GPP_umol_m2_s'] = df2.loc[:, 'GPP'] #* c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL
             df2.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
                                  c.SEC_TO_HR
 
@@ -325,8 +296,10 @@ class FitOmega(object):
                     rain_idx = new_idx
 
             df2 = df.copy()
+            df2.loc[:, 'GPP_umol_m2_s'] = df2.loc[:, 'GPP'] #* c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL
             df2.loc[:, 'GPP'] *= c.MOL_C_TO_GRAMS_C * c.UMOL_TO_MOL * \
                                 c.SEC_TO_HLFHR
+
 
             df = df2
 
@@ -412,8 +385,8 @@ class FitOmega(object):
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
 
-        fig.savefig(os.path.join(self.oplots, "%s_omega.pdf" % (d['site'])),
-                    bbox_inches='tight', pad_inches=0.1)
+        fig.savefig(os.path.join(self.oplots, "%s_omega.png" % (d['site'])),
+                    bbox_inches='tight', pad_inches=0.1, dpi=100)
         plt.close(fig)
 
         return df, d
@@ -446,26 +419,26 @@ class FitOmega(object):
 if __name__ == "__main__":
 
 
-    #"""
+    """
     F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
                  ofdir="data/processed/",
                  co2dir="data/raw_data/global_CO2_data/",
-                 site_fname="site_metadata.csv",
+                 site_fname="Site_metadata.csv",
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
                  ofname="omega_fluxnet_PM_hourly.csv")
     F.main(hour=True)
-    #"""
-
     """
+
+    #"""
     F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hfhrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
                  ofdir="data/processed/",
                  co2dir="data/raw_data/global_CO2_data/",
-                 site_fname="site_metadata.csv",
+                 site_fname="Site_metadata.csv",
                  global_co2_fname="Global_CO2_mean_NOAA.csv",
                  ofname="omega_fluxnet_PM_half_hourly.csv")
     F.main(hour=False)
-    """
+    #"""

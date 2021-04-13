@@ -101,14 +101,30 @@ class FitOmega(object):
                 df_s = df_s.rename(columns={'omega':'omega_sigma'})
                 df_c = df_c.rename(columns={'omega':'omega_count'})
 
-
+                #print(list(df))
+                #sys.exit()
                 dfx = df.copy()
-                dfx = dfx[['omega','GPP_umol_m2_s', 'Qle', 'ga', 'gs', 'VPD']]
+                dfx = dfx[['omega','GPP_umol_m2_s', 'Qle', 'ga', 'gs', 'VPD',\
+                           'Tair','Wind','Rnet']]
                 dfx.loc[:, 'VPD'] *= c.PA_TO_KPA
+                dfx['measurement_ht'] = d['measurement_ht']
+                dfx['tower_ht'] = d['tower_ht']
+                dfx['canopy_ht'] = d['canopy_ht']
+
+
                 dfx = dfx.rename(columns={'VPD':'VPD_kPa',
                                           'Qle':'LE_W_m2',
                                           'gs':'gs_mol_m2_s',
-                                          'ga':'ga_mol_m2_s'})
+                                          'ga':'ga_mol_m2_s',
+                                          'Tair':'Tair_degC',
+                                          'Wind':'Wind_m_s',
+                                          'Rnet':'Rnet_W_m2',
+                                          'measurement_ht':'measurement_ht_m',
+                                          'tower_ht':'tower_ht_m',
+                                          'canopy_ht':'canopy_ht_m'})
+
+
+
 
 
                 ofname = os.path.join(self.outputs, \
@@ -116,7 +132,7 @@ class FitOmega(object):
                 if os.path.exists(ofname):
                     os.remove(ofname)
                 dfx.to_csv(ofname, index=True)
-
+                
     def read_file(self, fname):
 
         date_parse = lambda x: datetime.strptime(x, '%Y%m%d%H%M%S')

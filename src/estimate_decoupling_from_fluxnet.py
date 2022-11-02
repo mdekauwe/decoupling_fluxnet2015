@@ -4,8 +4,9 @@ Estimate omega from FLUXNET2015 data.
 
 Data from:
 
-/srv/ccrc/data04/z3509830/Fluxnet_data/FLUXNET2016/Original_data/Halfhourly_qc_fixed
-/srv/ccrc/data04/z3509830/Fluxnet_data/FLUXNET2016/Original_data/Hourly_qc_fixed
+/srv/ccrc/LandAU/z3509830/data04/Fluxnet_data/FLUXNET2016/Original_data/Halfhourly_qc_fixed
+/srv/ccrc/LandAU/z3509830/data04/Fluxnet_data/FLUXNET2016/Original_data/Hourly_qc_fixed
+
 
 That's all folks.
 """
@@ -132,7 +133,7 @@ class FitOmega(object):
                 if os.path.exists(ofname):
                     os.remove(ofname)
                 dfx.to_csv(ofname, index=True)
-                
+
     def read_file(self, fname):
 
         date_parse = lambda x: datetime.strptime(x, '%Y%m%d%H%M%S')

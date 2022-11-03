@@ -145,7 +145,8 @@ class FitOmega(object):
         # Using ERA interim filled met vars ... _F
         df = df.rename(columns={'LE_F_MDS': 'Qle', 'H_F_MDS': 'Qh',
                                 'VPD_F_MDS': 'VPD', 'TA_F': 'Tair',
-                                'NETRAD': 'Rnet', 'G_F_MDS': 'Qg',
+                                'NETRAD': 'Rnet',
+                                'G_F_MDS': 'Qg',
                                 'WS_F': 'Wind', 'P_F': 'Precip',
                                 'USTAR': 'ustar', 'LE_CORR': 'Qle_cor',
                                 'H_CORR': 'Qh_cor', 'CO2_F_MDS': 'CO2air',
@@ -155,6 +156,7 @@ class FitOmega(object):
                                 'LE_CORR_JOINTUNC': 'Qle_cor_uc',
                                 'H_CORR_JOINTUNC': 'Qh_cor_uc',
                                 'GPP_NT_VUT_REF': 'GPP'})
+
 
         df = df[['Qle', 'Qh', 'VPD', 'Tair', 'Rnet', 'Qg', 'Wind', \
                  'Precip', 'ustar', 'Qle_cor', 'Qh_cor', 'Psurf',\
@@ -172,13 +174,14 @@ class FitOmega(object):
         # W m-2 to kg m-2 s-1
         lhv = self.latent_heat_vapourisation(df['Tair'])
         df.loc[:, 'ET'] = df['Qle'] / lhv
-        df.loc[:, 'ET_cor'] = df['Qle_cor'] / lhv
+
+        # Use EBR value instead - uncomment to output this correction
+        #df.loc[:, 'ET'] = df['Qle_cor'] / lhv
 
 
         # kg m-2 s-1 to mol m-2 s-1
         conv = c.KG_TO_G * c.G_WATER_TO_MOL_WATER
         df.loc[:, 'ET'] *= conv
-        df.loc[:, 'ET_cor'] *= conv
 
         # screen by low u*, i.e. conditions which are often indicative of
         # poorly developed turbulence, after Sanchez et al. 2010, HESS, 14,
@@ -263,6 +266,20 @@ class FitOmega(object):
 
         d['ppt'] = np.mean(df_y.Precip.values)
 
+
+
+        # NB, I'm not slicing the df here, setting this to a copy
+
+        # The values for this flag are (0–3): _F_MDS_QC = 0 (measured);
+        # _F_MDS_QC = 1 (filled with high confidence);
+        #df_bal = df[( (df['Qle_qc'] == 0) | (df['Qle_qc'] == 1) ) &
+        #            ( (df['Qh_qc'] == 0) | (df['Qh_qc'] == 1) ) &
+        #            #( (df['Rnet_qc'] == 0) | (df['Rnet_qc'] == 1) ) &
+        #            ( (df['Qg_qc'] == 0) | (df['Qg_qc'] == 1) )]
+
+        #top = np.sum(df_bal.Qle + df_bal.Qh)
+        #bot = np.sum(df_bal.Rnet - df_bal.Qg)
+
         # filter daylight hours, good LE data, GPP, CO2
         #
         # If we have no ground heat flux, just use Rn
@@ -280,6 +297,32 @@ class FitOmega(object):
                     ( (df['Qg_qc'] == 0) | (df['Qg_qc'] == 1) ) &
                     (df['ET'] > 0.01 / 1000.) & # check in mmol, but units are mol
                     (df['VPD'] > 0.05)]
+
+            # Turn on if EB correcting - i.e. Fig A2
+            # Correct based on method 4 from Wohlfahrt et al. Agricultural and
+            # Forest Meteorology 149
+            #if top > 0.0:
+            #    corection_factor = bot/top
+            #    df.Qle *= corection_factor
+            #    df.Qh *= corection_factor
+            #
+            #    df.loc[:, 'Qle'] = df['Qle'] * corection_factor
+            #    df.loc[:, 'Qh'] = df['Qh'] * corection_factor
+            #
+            #    lhv = self.latent_heat_vapourisation(df['Tair'])
+            #    df.loc[:, 'ET'] = df['Qle'] / lhv
+            #    df.loc[:, 'ET'] = df['Qle'] / lhv
+            #
+            #
+            #    # kg m-2 s-1 to mol m-2 s-1
+            #    conv = c.KG_TO_G * c.G_WATER_TO_MOL_WATER
+            #    df.loc[:, 'ET'] = df['ET'].copy() * conv
+            #
+            #
+            #    if bot > 0.0:
+            #        d['EBR'] = top / bot
+            #else:
+            #    d['EBR'] = -999.9
 
         # Filter events after rain ...
         idx = df[df.Precip > 0.0].index.tolist()
@@ -437,7 +480,7 @@ if __name__ == "__main__":
 
 
     """
-    F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hrly",
+    F = FitOmega(fdir="/Users/xj21307/Desktop/test_hrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
                  ofdir="data/processed/",
@@ -449,7 +492,7 @@ if __name__ == "__main__":
     """
 
     #"""
-    F = FitOmega(fdir="/Users/mdekauwe/Desktop/test_hfhrly",
+    F = FitOmega(fdir="/Users/xj21307/Desktop/test_hfhrly",
                  #fdir="data/raw_data/fluxnet2015_tier_1",
                  adir="data/raw_data/anna_meta",
                  ofdir="data/processed/",
